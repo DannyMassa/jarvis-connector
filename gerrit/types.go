@@ -96,7 +96,7 @@ func (info *CheckerInfo) String() string {
 	return string(out)
 }
 
-// Unmarshal unmarshals Gerrit JSON, stripping the security prefix.
+// Unmarshal unmarshal Gerrit JSON, stripping the security prefix.
 func Unmarshal(content []byte, dest interface{}) error {
 	if !bytes.HasPrefix(content, jsonPrefix) {
 		if len(content) > 100 {
@@ -107,7 +107,7 @@ func Unmarshal(content []byte, dest interface{}) error {
 		return fmt.Errorf("prefix %q not found, got %s", jsonPrefix, bodyStr)
 	}
 
-	content = bytes.TrimPrefix(content, []byte(jsonPrefix))
+	content = bytes.TrimPrefix(content, jsonPrefix)
 	return json.Unmarshal(content, dest)
 }
 
@@ -163,4 +163,19 @@ type CheckInfo struct {
 	CheckerName   string    `json:"checker_name"`
 	CheckerStatus string    `json:"checker_status"`
 	Blocking      []string  `json:"blocking"`
+}
+
+type PendingSubmitInfo struct {
+	Id         string    `json:"id"`
+	Project    string    `json:"project"`
+	Branch     string    `json:"branch"`
+	Hashtags   []string  `json:"hashtags"`
+	ChangeId   string    `json:"change_id"`
+	Subject    string    `json:"subject"`
+	Status     string    `json:"status"`
+	Created    Timestamp `json:"created"`
+	Updated    Timestamp `json:"updated"`
+	SubmitType string    `json:"submit_type"`
+	Mergeable  bool      `json:"mergeable"`
+	Subittable bool      `json:"submittable"`
 }

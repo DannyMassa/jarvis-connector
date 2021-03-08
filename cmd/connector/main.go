@@ -17,10 +17,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/att-comdev/jarvis-connector/gerrit"
 	flag "github.com/spf13/pflag"
@@ -34,6 +36,7 @@ var (
 	register         bool
 	update           bool
 	list             bool
+	blocking         bool
 	authFile         string
 	repo             string
 	prefix           string
@@ -45,6 +48,7 @@ func main() {
 	flag.BoolVar(&register, "register", false, "Register the connector with gerrit")
 	flag.BoolVar(&update, "update", false, "Update an existing check")
 	flag.BoolVar(&list, "list", false, "List pending checks")
+	flag.BoolVar(&blocking, "blocking", true, "check should block submission in event of failure")
 	flag.StringVar(&authFile, "auth_file", "", "file containing user:password")
 	flag.StringVar(&repo, "repo", "", "the repository (project) name to apply the checker to.")
 	flag.StringVar(&prefix, "prefix", "", "the prefix that the checker should use for jobs, this is also used as the job name in gerrit.")
@@ -62,7 +66,7 @@ func main() {
 		log.Fatal("must set --auth_file")
 	}
 
-	g := gerrit.New(*u)
+	g := gerrit.NewServer(*u)
 
 	g.UserAgent = "JarvisConnector"
 
@@ -109,7 +113,7 @@ func main() {
 			log.Fatalf("must set --prefix")
 		}
 
-		ch, err := gc.PostChecker(repo, prefix, update)
+		ch, err := gc.PostChecker(repo, prefix, update, blocking) //nolint
 		if err != nil {
 			log.Fatalf("CreateChecker: %v", err)
 		}
@@ -127,4 +131,29 @@ func main() {
 	}
 
 	gc.Serve()
+}
+
+// checkerScheme is the scheme by which we are registered in the Gerrit server.
+const checkerScheme = "jarvis"
+
+// errIrrelevant is a marker error value used for checks that don't apply for a change.
+var errIrrelevant = errors.New("irrelevant")
+
+// TektonListenerPayload to be received by trigger
+type TektonListenerPayload struct {
+	RepoRoot       string `json:"repoRoot"`
+	Project        string `json:"project"`
+	ChangeNumber   string `json:"changeNumber"`
+	PatchSetNumber int    `json:"patchSetNumber"`
+	CheckerUUID    string `json:"checkerUUID"`
+}
+
+// checkerPrefix extracts the prefix to check for from a checker UUID.
+func checkerPrefix(uuid string) (string, bool) {
+	uuid = strings.TrimPrefix(uuid, checkerScheme+":")
+	fields := strings.Split(uuid, "-")
+	if len(fields) != 2 {
+		return "", false
+	}
+	return fields[0], true
 }
